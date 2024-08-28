@@ -9,7 +9,7 @@ client.commands = new Collection();
 
 const prefix = '/';
 
-const sessionsDB = './sessions.yaml';
+const sessionsDB = './scrapbook-app/src/api/sessions.yaml';
 const scrapbookDB = './scrapbook-app/src/api/scrapbook.yaml';
 
 const loadDB = (file) => {
@@ -33,19 +33,27 @@ client.once('ready', () => {
 });
 
 client.on('messageCreate', async message => {
-  console.log(`Received message: ${message.content}`);
-
   if (!message.content.startsWith(prefix) || message.author.bot) return;
 
   const args = message.content.slice(prefix.length).trim().split(/ +/);
   const command = args.shift().toLowerCase();
 
-  console.log(`Command received: ${command}`);
+  if (command === 'help') {
+    message.channel.send(`
+      **Scrapbook Bot Commands:**
+      1. **/arcade {title}**: Start a session with title.
+      2. **/scrapbook {Title} {GitHub URL} {Image URL} {Session Keys (comma separated)}**: Create a scrapbook entry linked to previous sessions.
+      3. **/view**: Display link to view scrapbook.
+      4. **/help**: Display this help message.
+    `);
+    return;
+  }
 
   if (command === 'arcade') {
+    console.log("Received /arcade command");
     const title = args.join(' ');
     if (!title) {
-      message.channel.send('Please provide a title for the session.');
+      await message.channel.send('Please provide a title for the session.');
       return;
     }
 
@@ -54,34 +62,42 @@ client.on('messageCreate', async message => {
 
     saveDB(sessionsDB, sessions);
 
-    message.channel.send(`Session "${title}" started! You can now chat for one minute.`);
+    await message.channel.send(`Session "${title}" started! You can now chat for one minute.\nYour session key: ${sessionKey}`);
 
-    setTimeout(() => {
-      message.channel.send(`Session "${title}" has ended.`);
+    setTimeout(async () => {
+      await message.channel.send(`Session "${title}" has ended.`);
     }, 60 * 1000);
 
     return;
   }
 
   if (command === 'scrapbook') {
-    const [githubUrl, imageUrl, ...descArr] = args;
-    if (!githubUrl || !imageUrl || descArr.length === 0) {
-      message.channel.send('Please provide a GitHub URL, an Image URL, and a description.');
+    const [scrapbookTitle, githubUrl, imageUrl, ...sessionKeys] = args;
+
+    if (!scrapbookTitle || !githubUrl || !imageUrl || sessionKeys.length === 0) {
+      await message.channel.send('Please provide a GitHub URL, an Image URL, a Title, and Session Keys (comma-separated).');
       return;
     }
 
-    const description = descArr.join(' ');
+    const validSessionKeys = sessionKeys.join('').split(',').filter(key => sessions[key]);
+
     const scrapbookEntry = {
       githubUrl,
       imageUrl,
-      description,
-      sessions: []
+      title: scrapbookTitle,
+      sessions: validSessionKeys
     };
+
     const scrapbookKey = `${message.author.id}-${Date.now()}`;
     scrapbook[scrapbookKey] = scrapbookEntry;
     saveDB(scrapbookDB, scrapbook);
 
-    message.channel.send(`Scrapbook entry created with key: ${scrapbookKey}`);
+    await message.channel.send(`Scrapbook entry created with key: ${scrapbookKey}`);
+    return;
+  }
+
+  if (command === 'view') {
+    await message.channel.send('You can view the scrapbook here: [Scrapbook](http://localhost:3000/)');
     return;
   }
 
