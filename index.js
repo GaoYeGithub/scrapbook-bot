@@ -10,7 +10,7 @@ client.commands = new Collection();
 const prefix = '/';
 
 const sessionsDB = './sessions.yaml';
-const scrapbookDB = './scrapbook.yaml';
+const scrapbookDB = './scrapbook-app/src/api/scrapbook.yaml';
 
 const loadDB = (file) => {
   if (fs.existsSync(file)) {
