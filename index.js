@@ -1,13 +1,13 @@
-const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const { Client, GatewayIntentBits } = require('discord.js');
 const fs = require('fs');
 const YAML = require('yaml');
-const dotenv = require('dotenv-flow/config');
+require('dotenv-flow').config();
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 
-client.commands = new Collection();
-
-const prefix = '/';
+client.once('ready', () => {
+  console.log(`Logged in as ${client.user.tag}!`);
+});
 
 const sessionsDB = './scrapbook-app/src/api/sessions.yaml';
 const scrapbookDB = './scrapbook-app/src/api/scrapbook.yaml';
@@ -28,58 +28,37 @@ const saveDB = (file, data) => {
 let sessions = loadDB(sessionsDB);
 let scrapbook = loadDB(scrapbookDB);
 
-client.once('ready', () => {
-  console.log(`Logged in as ${client.user.tag}!`);
-});
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isCommand()) return;
 
-client.on('messageCreate', async message => {
-  if (!message.content.startsWith(prefix) || message.author.bot) return;
+  const { commandName } = interaction;
 
-  const args = message.content.slice(prefix.length).trim().split(/ +/);
-  const command = args.shift().toLowerCase();
-
-  if (command === 'help') {
-    message.channel.send(`
-      **Scrapbook Bot Commands:**
-      1. **/arcade {title}**: Start a session with title.
-      2. **/scrapbook {Title} {GitHub URL} {Image URL} {Session Keys (comma separated)}**: Create a scrapbook entry linked to previous sessions.
-      3. **/view**: Display link to view scrapbook.
-      4. **/help**: Display this help message.
-    `);
-    return;
-  }
-
-  if (command === 'arcade') {
-    console.log("Received /arcade command");
-    const title = args.join(' ');
-    if (!title) {
-      await message.channel.send('Please provide a title for the session.');
-      return;
-    }
-
-    const sessionKey = `${message.author.id}-${Date.now()}`;
-    sessions[sessionKey] = { title, messages: [], startTime: Date.now(), user: message.author.id };
+  if (commandName === 'arcade' || commandName === 'test') {
+    const title = interaction.options.getString('title');
+    const sessionKey = `${interaction.user.id}-${Date.now()}`;
+    sessions[sessionKey] = { title, messages: [], startTime: Date.now(), user: interaction.user.id };
 
     saveDB(sessionsDB, sessions);
 
-    await message.channel.send(`Session "${title}" started! You can now chat for one minute.\nYour session key: ${sessionKey}`);
+    await interaction.reply(`Session "${title}" started! You can now chat for one minute.\nYour session key: ${sessionKey}`);
 
     setTimeout(async () => {
-      await message.channel.send(`Session "${title}" has ended.`);
+      await interaction.followUp(`Session "${title}" has ended.`);
     }, 60 * 1000);
-
-    return;
   }
 
-  if (command === 'scrapbook') {
-    const [scrapbookTitle, githubUrl, imageUrl, ...sessionKeys] = args;
+  else if (commandName === 'scrapbook') {
+    const scrapbookTitle = interaction.options.getString('title');
+    const githubUrl = interaction.options.getString('github_url');
+    const imageUrl = interaction.options.getString('image_url');
+    const sessionKeys = interaction.options.getString('session_keys').split(',').map(key => key.trim());
 
     if (!scrapbookTitle || !githubUrl || !imageUrl || sessionKeys.length === 0) {
-      await message.channel.send('Please provide a GitHub URL, an Image URL, a Title, and Session Keys (comma-separated).');
+      await interaction.reply('Please provide a GitHub URL, an Image URL, a Title, and Session Keys (comma-separated).');
       return;
     }
 
-    const validSessionKeys = sessionKeys.join('').split(',').filter(key => sessions[key]);
+    const validSessionKeys = sessionKeys.filter(key => sessions[key]);
 
     const scrapbookEntry = {
       githubUrl,
@@ -88,26 +67,27 @@ client.on('messageCreate', async message => {
       sessions: validSessionKeys
     };
 
-    const scrapbookKey = `${message.author.id}-${Date.now()}`;
+    const scrapbookKey = `${interaction.user.id}-${Date.now()}`;
     scrapbook[scrapbookKey] = scrapbookEntry;
     saveDB(scrapbookDB, scrapbook);
 
-    await message.channel.send(`Scrapbook entry created with key: ${scrapbookKey}`);
-    return;
+    await interaction.reply(`Scrapbook entry created with key: ${scrapbookKey}`);
   }
 
-  if (command === 'view') {
-    await message.channel.send('You can view the scrapbook here: [Scrapbook](http://localhost:3000/)');
-    return;
+  else if (commandName === 'view') {
+    await interaction.reply('You can view the scrapbook here: [Scrapbook](http://localhost:3000/)');
   }
 
-  Object.keys(sessions).forEach(key => {
-    const session = sessions[key];
-    if (session.user === message.author.id && Date.now() - session.startTime < 60 * 1000) {
-      session.messages.push(message.content);
-      saveDB(sessionsDB, sessions);
-    }
-  });
+  else if (commandName === 'help') {
+    await interaction.reply(`
+      **Scrapbook Bot Commands:**
+      1. **/arcade {title}**: Start a session with title.
+      2. **/scrapbook {Title} {GitHub URL} {Image URL} {Session Keys (comma separated)}**: Create a scrapbook entry linked to previous sessions.
+      3. **/view**: Display link to view scrapbook.
+      4. **/help**: Display this help message.
+      5. **/test {title}**: Start a test session with title.
+    `);
+  }
 });
 
 client.login(process.env.DISCORD_TOKEN);
