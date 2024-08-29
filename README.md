@@ -1,3 +1,6 @@
+Open three spilt termials
+cd scrapbook-bot
+
 Input your discord token in .env
 
 Then use
@@ -5,6 +8,16 @@ Then use
 command npm i
 
 node index.js
+
+second termial 
+cd scrapbook-app
+npm i
+npm start
+
+thrid termial
+cd src/api
+node server.js
+
 
 ![image](https://github.com/user-attachments/assets/f32f1d0b-538d-4adc-aa9a-967621df49a4)
 ![image](https://github.com/user-attachments/assets/63e5a779-d02a-4a1c-905d-778ed934f10c)
